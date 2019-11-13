@@ -1,2 +1,2 @@
-# character_prediction
+# text_prediction
 Engineering thesis
