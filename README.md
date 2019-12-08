@@ -1,2 +1,2 @@
 # text_prediction
-Engineering thesis
+Text generator based on characters, words (neural networks) and markov chain
