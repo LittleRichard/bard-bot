@@ -1,0 +1,6 @@
+azapi
+cmd2
+keras
+numpy
+sklearn
+tensorflow

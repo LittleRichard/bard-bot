@@ -1,0 +1,8 @@
+bin/*
+lib/*
+lib64
+pyvenv.cfg
+share/*
+.idea/*
+*/text_data/*.txt
+*.pyc
