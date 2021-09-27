@@ -3,4 +3,4 @@ cmd2
 keras
 numpy
 sklearn
-tensorflow
+tensorflow==2.6.0

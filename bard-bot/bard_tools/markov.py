@@ -32,7 +32,7 @@ class Dataset:
 
     def __create_tokens(self, words, sequence_length):
         encoded_words = [self.word_to_indices[word] for word in words]
-        tokens = list()
+        tokens = []
         for i in range(sequence_length, len(words)):
             line = ' '.join(words[i - sequence_length:i])
             self.text_sequences.append(line)
@@ -43,10 +43,12 @@ class Dataset:
         data = np.asarray(tokens)
         X, y = data[:, :-1], data[:, -1]
         y = np_utils.to_categorical(y, num_classes=self.vocab_size)
-        self.X_train, self.X_val, self.y_train, self.y_val = train_test_split(X,
-                                                                              y,
-                                                                              test_size=0.2,
-                                                                              shuffle=True)
+        self.X_train, self.X_val, self.y_train, self.y_val = train_test_split(
+            X,
+            y,
+            test_size=0.2,
+            shuffle=True
+        )
 
     def get_random_sequence(self):
         return self.text_sequences[randint(0, len(self.text_sequences))]
@@ -54,9 +56,12 @@ class Dataset:
 
 # TODO: make config params out of the model inputs
 class Model:
-    def __init__(self, vocab_size, input_sequence_length):
-        self.vocab_size = vocab_size
+    def __init__(self, vocab, input_sequence_length, output_sequence_length):
+        self.vocab = vocab
         self.input_sequence_length = input_sequence_length
+        self.output_sequence_length = output_sequence_length
+        self.word_to_indices = dict((w, i) for i, w in enumerate(vocab))
+        self.indices_to_word = dict((i, w) for i, w in enumerate(vocab))
 
         self.model = Sequential()
         self.__build_model()
@@ -64,29 +69,30 @@ class Model:
         self.model.summary()
 
     def __build_model(self):
-        self.model.add(Embedding(self.vocab_size, 50, input_length=self.input_sequence_length))
+        self.model.add(Embedding(len(self.vocab), 50, input_length=self.input_sequence_length))
         self.model.add(LSTM(100, return_sequences=True, recurrent_initializer='glorot_uniform', kernel_constraint=max_norm(3)))
         self.model.add(BatchNormalization())
         self.model.add(LSTM(100, recurrent_initializer='glorot_uniform', kernel_constraint=max_norm(3)))
         self.model.add(BatchNormalization())
-        self.model.add(Dense(self.vocab_size, activation='softmax'))
+        self.model.add(Dense(len(self.vocab), activation='softmax'))
 
     def __compile_model(self):
         self.model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
     def fit_model(self, x_train, y_train, validation_data, epochs, batch_size, callbacks):
-       return self.model.fit(
-           x_train,
-           y_train,
-           validation_data=validation_data,
-           epochs=epochs,
-           batch_size=batch_size,
-           verbose=2,
-           callbacks=callbacks
-       )
+        return self.model.fit(
+            x_train,
+            y_train,
+            validation_data=validation_data,
+            epochs=epochs,
+            batch_size=batch_size,
+            verbose=2,
+            callbacks=callbacks
+        )
 
 
-def generate_text_from_model(model, seed, words_amount, word_to_indices,
+def generate_text_from_model(model,
+                             seed, words_amount, word_to_indices,
                              input_sequence_length, indices_to_word):
     result = list()
     input_text = seed
@@ -96,10 +102,15 @@ def generate_text_from_model(model, seed, words_amount, word_to_indices,
         encoded_text = pad_sequences([encoded_text],
                                      maxlen=input_sequence_length,
                                      truncating='pre')
-        predictions = model.predict_classes(encoded_text, verbose=0)
-        predicted_word = indices_to_word[predictions[0]]
+
+        # updated because predict_classes not in tensorflow 2.6
+        predictions = model.predict(encoded_text, verbose=0)
+        prediction_classes = np.argmax(predictions, axis=1)
+
+        predicted_word = indices_to_word[prediction_classes[0]]
         input_text += ' ' + predicted_word
         result.append(predicted_word)
+
     result = ' '.join(result).replace(" ,", ",").replace(" .", ".\n")
     return result
 
@@ -110,6 +121,7 @@ def noop(*arg, **kwargs):
 
 def markov_get_dataset_and_model(text,
                                  show_training_stage_test=False,
+                                 training_stage_test_seed=None,
                                  send_output=noop):
     """ A bunch of Markov madness copied from the internet, organized here
     with minimal understanding of how it works.
@@ -121,17 +133,20 @@ def markov_get_dataset_and_model(text,
     send_output('Total words: {}'.format(len(words)))
     send_output('Unique words: {}'.format(len(vocab)))
 
-    send_output('Building indices')
-    word_to_indices = dict((w, i) for i, w in enumerate(vocab))
-    indices_to_word = dict((i, w) for i, w in enumerate(vocab))
-
+    send_output('Creating model object')
     # config?
     input_sequence_length = 10
     output_sequence_length = 1
 
+    model = Model(
+        vocab,
+        input_sequence_length,
+        output_sequence_length,
+    )
+
     send_output('Creating dataset')
     dataset = Dataset(
-        word_to_indices, len(vocab)
+        model.word_to_indices, len(vocab)
     ).make_dataset(
         words,
         input_sequence_length,
@@ -139,8 +154,6 @@ def markov_get_dataset_and_model(text,
     )
 
     send_output('Total Sequences: {}'.format(len(dataset.text_sequences)))
-
-    model = Model(len(vocab), input_sequence_length)
 
     early_stopping = EarlyStopping(
         monitor='val_loss',
@@ -154,22 +167,26 @@ def markov_get_dataset_and_model(text,
 
     callbacks = [early_stopping]
     if show_training_stage_test:
-        seed_for_epochs = dataset.get_random_sequence()
+        seed_for_epochs = (
+            training_stage_test_seed
+            if training_stage_test_seed
+            else dataset.get_random_sequence()
+        )
+
         send_output("Checking stages with seed:", seed_for_epochs)
 
         def _on_epoch_end(epoch, _):
-            send_output('-- Start generated text --\n')
-            send_output(
-                generate_text_from_model(
-                    model.model,
-                    seed_for_epochs,
-                    50,  # words_amount
-                    word_to_indices,
-                    input_sequence_length,
-                    indices_to_word
-                )
+            epoch_generated_text = generate_text_from_model(
+                model.model,
+                seed_for_epochs,
+                50,  # words_amount
+                model.word_to_indices,
+                model.input_sequence_length,
+                model.indices_to_word,
             )
-            send_output('\n-- End generated text --\n')
+            send_output('----------- Start generated text\n'
+                        f'{epoch_generated_text}\n'
+                        f'----------- End generated text --\n')
 
         callbacks.append(LambdaCallback(on_epoch_end=_on_epoch_end))
 
