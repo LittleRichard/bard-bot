@@ -1,3 +1,2 @@
-# text_prediction
-Text generator based on characters, words (neural networks) and markov chain.
-My engineer thesis.
+# bard-bot
+Find lyrics and feed to Markov Chain to train a Bard that can write it's own lyrics.
