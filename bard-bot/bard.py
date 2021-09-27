@@ -49,9 +49,11 @@ class Bard(cmd2.Cmd):
     build_model_argparser.add_argument(
         '-v', '--verbose', action='store_true',
         help='Show training stage outputs')
+    # TODO: typaeahead on self.words_to_indices
     build_model_argparser.add_argument(
-        '-s', '--seed',  # TODO: make this pull from self.model.word_to_indices
+        '-s', '--seed',
         help='Used with verbose. Seed text for training')
+    # TODO: by default, don't build over an existing model, ask to force.
 
     @with_argparser(build_model_argparser)
     def do_build_model(self, args):
@@ -81,6 +83,7 @@ class Bard(cmd2.Cmd):
     generate_text_argparser.add_argument(
         '-s', '--seed',
         help='Used with verbose. Seed text for training')
+    # TODO: typaeahead on self.words_to_indices
 
     @with_argparser(generate_text_argparser)
     def do_generate_text(self, args):
