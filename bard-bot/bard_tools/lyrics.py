@@ -1,25 +1,19 @@
 from azapi import AZlyrics
 
-
-def _get_az_api():
-    # use google to make exact matches
-    az_api = AZlyrics('google')
-
-    return az_api
+API_DELAY = 5
 
 
-def get_lyrics(artist, song):
-    # use google to make exact matches
-    az_api = _get_az_api()
-    az_api.artist = artist
+def get_lyrics(artist_known, song):
+    az_api = AZlyrics()  # no google because artist known
+    az_api.artist = artist_known
     az_api.title = song
 
-    lyrics = az_api.getLyrics(sleep=3)
+    lyrics = az_api.getLyrics(sleep=API_DELAY)
     return az_api.artist, az_api.title, lyrics
 
 
-def get_songs(artist):
-    az_api = _get_az_api()
-    az_api.artist = artist
+def get_songs(artist_guess):
+    az_api = AZlyrics('google')  # fix the guess with google
+    az_api.artist = artist_guess
 
-    return az_api.getSongs(sleep=3)
+    return az_api.getSongs(sleep=API_DELAY)

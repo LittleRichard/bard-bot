@@ -10,14 +10,15 @@ from cmd2 import Cmd2ArgumentParser, with_argparser
 from bard_tools.lyrics import get_lyrics, get_songs
 from bard_tools.markov import (markov_get_dataset_and_model,
                                generate_text_from_model)
-from bard_tools.storage import load_text_data, get_artist_name_from_full_path
+from bard_tools.storage import load_text_data, get_artist_name_from_full_path, \
+    get_full_path_from_artist_name, get_file_save_path, save_text_data
 from bard_tools.text_utils import process_text
 
 
 DEFAULT_TEXT_DATA_DIR = os.path.abspath('text_data')
 
 
-class Bard(cmd2.Cmd):
+class BardBot(cmd2.Cmd):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -42,18 +43,70 @@ class Bard(cmd2.Cmd):
     @with_argparser(download_artist_argparser)
     def do_download_artist(self, args):
         song_names = get_songs(args.artist)
-        for song_name in song_names:
-            (artist_official,
-             song_official,
-             lyrics) = get_lyrics(args.artist, song_name)
-            print(f'{artist_official} {song_official} {len(lyrics)}')
-            """
-            Bard> download_artist "Led zepplin"
-            Led Zeppelin Good Times Bad Times 1034
-            Led Zeppelin Babe, I'm Gonna Leave You 1342
-            Led Zeppelin You Shook Me 534
-            Led Zeppelin Dazed And Confused 896
-            """
+        print(f'Found {len(song_names)} for search: {args.artist}')
+        artist_official = None
+
+        if len(song_names) == 0:
+            print('No songs')
+            return
+
+        artist_official = None
+        for idx, song_name in enumerate(song_names):
+            # at most, re-download 1 song to get the official
+            # artist before knowing how to use cache for the rest
+            if artist_official:
+                save_path = get_file_save_path(
+                    artist_official, song_name, self.text_data_dir)
+                if os.path.isfile(save_path):
+                    print(f'Cache has {idx+1} of {len(song_names)} : '
+                          f'{artist_official} : {song_name}')
+                    continue
+
+            (
+                artist_official,
+                song_official,
+                lyrics
+            ) = get_lyrics(args.artist, song_name)
+
+            if not isinstance(lyrics, str):
+                print(f'Error with song {song_official}')
+                continue
+
+            print(f'Downloaded {idx+1} of {len(song_names)} : '
+                  f'{artist_official} : {song_official} : '
+                  f'{len(lyrics)} chars')
+
+            save_path = get_file_save_path(
+                artist_official, song_name, self.text_data_dir)
+            if os.path.isfile(save_path):
+                print(f'Cache has {idx + 1} of {len(song_names)} '
+                      f': {song_name}')
+
+            save_text_data(save_path, lyrics)
+
+        if artist_official:
+            print(f'Official artist name: {artist_official}')
+        else:
+            print(f'No artist name found for {args.artist}')
+
+    # like "do_" prefix, identifies for completion of the function name suffix
+    def complete_download_artist(self, text, line, begidx, endidx):
+        sugg_paths = self.path_complete(
+            self.text_data_dir + '/' + text,
+            line,
+            begidx,
+            endidx,
+            path_filter=os.path.isdir
+        )
+
+        scrubbed_suggestions = []
+        for sugg_path in sugg_paths:
+            # get the directory name without full path
+            sugg = get_artist_name_from_full_path(sugg_path,
+                                                  self.text_data_dir)
+            scrubbed_suggestions.append(sugg)
+
+        return sorted(scrubbed_suggestions)
 
     add_artist_argparser = Cmd2ArgumentParser()
     add_artist_argparser.add_argument(
@@ -74,23 +127,7 @@ class Bard(cmd2.Cmd):
 
     # like "do_" prefix, identifies for completion of the function name suffix
     def complete_add_artist(self, text, line, begidx, endidx):
-        # TODO: get artist name
-
-        sugg_paths = self.path_complete(
-            self.text_data_dir + '/' + text,
-            line,
-            begidx,
-            endidx,
-            path_filter=os.path.isdir
-        )
-
-        scrubbed_suggestions = []
-        for sugg_path in sugg_paths:
-            # get the directory name without full path
-            sugg = get_artist_name_from_full_path(sugg_path, self.text_data_dir)
-            scrubbed_suggestions.append(sugg)
-
-        return sorted(scrubbed_suggestions)
+        return self.complete_download_artist(text, line, begidx, endidx)
 
     remove_artist_argparser = Cmd2ArgumentParser()
     remove_artist_argparser.add_argument(
@@ -206,7 +243,7 @@ class Bard(cmd2.Cmd):
                 self.model.indices_to_word,
             )
 
-            print(f"Bard's song:\n\n{generated_text}\n")
+            print(f"BardBot's song:\n\n{generated_text}\n")
         finally:
             print(f'Elapsed: {time.time() - start_time:.3f} seconds')
 
@@ -230,12 +267,12 @@ class Bard(cmd2.Cmd):
 
     def do_quit(self, args):
         print('\nSee ya!\n')
-        return super(Bard, self).do_quit(args)
+        return super(BardBot, self).do_quit(args)
 
 
 if __name__ == '__main__':
     print("""Enter 'help' to see commands, and 'quit' to exit""")
 
-    app = Bard()
-    app.prompt = "Bard> "
+    app = BardBot()
+    app.prompt = "BardBot > "
     sys.exit(app.cmdloop())
