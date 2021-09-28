@@ -1,4 +1,5 @@
 import os
+import random
 
 import cmd2
 import tensorflow as tf
@@ -42,7 +43,7 @@ class BardBot(cmd2.Cmd):
 
     @with_argparser(download_artist_argparser)
     def do_download_artist(self, args):
-        song_names = get_songs(args.artist)
+        song_names = list(get_songs(args.artist).keys())
         print(f'Found {len(song_names)} for search: {args.artist}')
         artist_official = None
 
@@ -51,6 +52,7 @@ class BardBot(cmd2.Cmd):
             return
 
         artist_official = None
+        random.shuffle(song_names)  # unpredictable fetch
         for idx, song_name in enumerate(song_names):
             # at most, re-download 1 song to get the official
             # artist before knowing how to use cache for the rest
@@ -119,8 +121,6 @@ class BardBot(cmd2.Cmd):
     def do_add_artist(self, args):
         if args.artist.endswith('/'):
             print('Try again without trailing /')
-
-        # TODO: "fix" artist name and get path in utils, then fix next line
         self.artists_to_paths[args.artist] = (
             f'{self.text_data_dir}/{args.artist}/'
         )
@@ -137,13 +137,10 @@ class BardBot(cmd2.Cmd):
 
     @with_argparser(remove_artist_argparser)
     def do_remove_artist(self, args):
-        # TODO: "fix" artist name and get path in utils, then fix next line
         self.artists_to_paths.pop(args.artist, None)  # default so no KeyError
 
     # like "do_" prefix, identifies for completion of the function name suffix
     def complete_remove_artist(self, text, line, begidx, endidx):
-        # TODO: get artist name
-
         return sorted(
             self.basic_complete(
                 text,

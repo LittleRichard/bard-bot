@@ -12,6 +12,8 @@ def get_full_path_from_artist_name(artist, base_dir):
 
 
 def get_file_save_path(artist, song_name, base_dir):
+    song_name = song_name.replace('/', '_')
+
     # makes the artist directory if not exists
     artist_folder = get_full_path_from_artist_name(artist, base_dir)
     if not os.path.exists(artist_folder):
