@@ -11,12 +11,15 @@ from cmd2 import Cmd2ArgumentParser, with_argparser
 from bard_tools.lyrics import get_lyrics, get_songs
 from bard_tools.markov import (markov_get_dataset_and_model,
                                generate_text_from_model)
-from bard_tools.storage import load_text_data, get_artist_name_from_full_path, \
-    get_full_path_from_artist_name, get_file_save_path, save_text_data
+from bard_tools.storage import (load_text_data, get_artist_name_from_full_path,
+                                get_file_save_path, save_text_data)
 from bard_tools.text_utils import process_text
 
 
-DEFAULT_TEXT_DATA_DIR = os.path.abspath('text_data')
+DEFAULT_TEXT_DATA_DIR = (
+    os.path.dirname(os.path.abspath(__file__))
+    + '/text_data'
+)
 
 
 class BardBot(cmd2.Cmd):
@@ -36,60 +39,61 @@ class BardBot(cmd2.Cmd):
 
     download_artist_argparser = Cmd2ArgumentParser()
     download_artist_argparser.add_argument(
-        'artist',
-        nargs='?',
-        help='Artist name to add. Use quotes to include spaces'
+        'artists',
+        nargs='+',
+        help='Artist name(s). Use quotes to include spaces in an artist name'
     )
 
     @with_argparser(download_artist_argparser)
     def do_download_artist(self, args):
-        song_names = list(get_songs(args.artist).keys())
-        print(f'Found {len(song_names)} for search: {args.artist}')
-        artist_official = None
+        for artist in args.artists:
+            song_names = list(get_songs(artist).keys())
+            print(f'Found {len(song_names)} for search: {artist}')
+            artist_official = None
 
-        if len(song_names) == 0:
-            print('No songs')
-            return
+            if len(song_names) == 0:
+                print('No songs')
+                return
 
-        artist_official = None
-        random.shuffle(song_names)  # unpredictable fetch
-        for idx, song_name in enumerate(song_names):
-            # at most, re-download 1 song to get the official
-            # artist before knowing how to use cache for the rest
-            if artist_official:
+            artist_official = None
+            random.shuffle(song_names)  # unpredictable fetch
+            for idx, song_name in enumerate(song_names):
+                # at most, re-download 1 song to get the official
+                # artist before knowing how to use cache for the rest
+                if artist_official:
+                    save_path = get_file_save_path(
+                        artist_official, song_name, self.text_data_dir)
+                    if os.path.isfile(save_path):
+                        print(f'Cache has {idx+1} of {len(song_names)} : '
+                              f'{artist_official} : {song_name}')
+                        continue
+
+                (
+                    artist_official,
+                    song_official,
+                    lyrics
+                ) = get_lyrics(artist, song_name)
+
+                if not isinstance(lyrics, str):
+                    print(f'Error with song {song_official}')
+                    continue
+
+                print(f'Downloaded {idx+1} of {len(song_names)} : '
+                      f'{artist_official} : {song_official} : '
+                      f'{len(lyrics)} chars')
+
                 save_path = get_file_save_path(
                     artist_official, song_name, self.text_data_dir)
                 if os.path.isfile(save_path):
-                    print(f'Cache has {idx+1} of {len(song_names)} : '
-                          f'{artist_official} : {song_name}')
-                    continue
+                    print(f'Cache has {idx + 1} of {len(song_names)} '
+                          f': {song_name}')
 
-            (
-                artist_official,
-                song_official,
-                lyrics
-            ) = get_lyrics(args.artist, song_name)
+                save_text_data(save_path, lyrics)
 
-            if not isinstance(lyrics, str):
-                print(f'Error with song {song_official}')
-                continue
-
-            print(f'Downloaded {idx+1} of {len(song_names)} : '
-                  f'{artist_official} : {song_official} : '
-                  f'{len(lyrics)} chars')
-
-            save_path = get_file_save_path(
-                artist_official, song_name, self.text_data_dir)
-            if os.path.isfile(save_path):
-                print(f'Cache has {idx + 1} of {len(song_names)} '
-                      f': {song_name}')
-
-            save_text_data(save_path, lyrics)
-
-        if artist_official:
-            print(f'Official artist name: {artist_official}')
-        else:
-            print(f'No artist name found for {args.artist}')
+            if artist_official:
+                print(f'Official artist name: {artist_official}')
+            else:
+                print(f'No artist name found for {artist}')
 
     # like "do_" prefix, identifies for completion of the function name suffix
     def complete_download_artist(self, text, line, begidx, endidx):
@@ -152,7 +156,6 @@ class BardBot(cmd2.Cmd):
         )
 
     def do_list_artists(self, args):
-        print(self.artists_to_paths)
         print('Currently selected:\n')
         print('\n'.join(sorted(
             get_artist_name_from_full_path(path, self.text_data_dir)
