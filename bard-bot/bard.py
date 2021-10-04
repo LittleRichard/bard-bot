@@ -10,9 +10,10 @@ from cmd2 import Cmd2ArgumentParser, with_argparser
 
 from bard_tools.lyrics import get_lyrics, get_songs
 from bard_tools.markov import (markov_get_dataset_and_model,
-                               generate_text_from_model)
+                               generate_text_from_model, DEFAULT_NUM_EPOCHS)
 from bard_tools.storage import (load_text_data, get_artist_name_from_full_path,
-                                get_file_save_path, save_text_data)
+                                get_file_save_path, save_text_data,
+                                get_all_artist_paths, get_num_files)
 from bard_tools.text_utils import process_text
 
 
@@ -155,13 +156,36 @@ class BardBot(cmd2.Cmd):
             )
         )
 
+    list_artists_argparser = Cmd2ArgumentParser()
+    list_artists_argparser.add_argument(
+        '-a', '--all', action='store_true',
+        help='Show all artists, not just currently selected')
+    list_artists_argparser.add_argument(
+        '-d', '--details', action='store_true',
+        help='Show details of artists data')
+
+    @with_argparser(list_artists_argparser)
     def do_list_artists(self, args):
-        print('Currently selected:\n')
-        print('\n'.join(sorted(
-            get_artist_name_from_full_path(path, self.text_data_dir)
-            for path in self.artists_to_paths.values()
-        )))
-        print('\n')
+
+        if args.all:
+            artist_info_strs = ['*** All artists']
+            artist_paths = get_all_artist_paths(DEFAULT_TEXT_DATA_DIR)
+        else:
+            artist_info_strs = ['*** Currently added to model']
+            artist_paths = self.artists_to_paths.values()
+
+        for path in sorted(artist_paths, key=lambda x: x.lower()):
+            artist_name = get_artist_name_from_full_path(
+                path, self.text_data_dir)
+
+            if args.details:
+                num_files = get_num_files(path)
+                artist_info_strs.append(
+                    f'{num_files:5d} files : {artist_name}')
+            else:
+                artist_info_strs.append(f'  {artist_name}')
+
+        print('\n'.join(artist_info_strs))
 
     build_model_argparser = Cmd2ArgumentParser()
     build_model_argparser.add_argument(
@@ -171,6 +195,10 @@ class BardBot(cmd2.Cmd):
         '-s', '--seed',
         nargs='?',
         help='Used with verbose. Seed text for training')
+    build_model_argparser.add_argument(
+        '-e', '--epochs',
+        nargs='?',
+        help='Maximum number of epochs to train for')
     build_model_argparser.add_argument(
         '-f', '--force', action='store_true',
         help='Override and build a new model over an existing one')
@@ -197,8 +225,14 @@ class BardBot(cmd2.Cmd):
 
                 text += process_text(raw_text)
 
+            num_epochs = (
+                int(args.epochs) if args.epochs
+                else DEFAULT_NUM_EPOCHS
+            )
+
             self.model, self.dataset = markov_get_dataset_and_model(
                 text,
+                num_epochs,
                 show_training_stage_test=args.verbose,
                 training_stage_test_seed=args.seed,
                 send_output=print,
@@ -208,9 +242,13 @@ class BardBot(cmd2.Cmd):
 
     generate_text_argparser = Cmd2ArgumentParser()
     generate_text_argparser.add_argument(
-        '-s', '--seed',
+        'seed',
         nargs='?',
         help='Seed text for generating text')
+    generate_text_argparser.add_argument(
+        '-n', '--num_words',
+        nargs='?',
+        help='Choose how many words to generate.')
 
     @with_argparser(generate_text_argparser)
     def do_generate_text(self, args):
@@ -219,7 +257,7 @@ class BardBot(cmd2.Cmd):
             return
 
         if args.seed and args.seed not in self.dataset.text_sequences:
-            print(f'Given seed not recognized: {args.seed}')
+            print(f'Given se ed not recognized: {args.seed}')
             return
 
         if args.seed is None:
@@ -234,10 +272,12 @@ class BardBot(cmd2.Cmd):
                 else self.dataset.get_random_sequence()
             )
 
+            num_words = int(args.num_words) if args.num_words else 200
+
             generated_text = generate_text_from_model(
                 self.model.model,
                 seed_for_epochs,
-                200,  # words_amount
+                num_words,
                 self.model.word_to_indices,
                 self.model.input_sequence_length,
                 self.model.indices_to_word,

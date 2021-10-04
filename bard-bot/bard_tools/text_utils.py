@@ -1,8 +1,13 @@
 import string
 
+
+COMMON_PUNCTUATION = '!\"#$%&\'()*+-/:;<=>?@[]^_`{|}~\\'
+OTHER_PUNTUATION = '–—”„…«»‘’“°ſ†•✠'
+
 characters_to_remove = (
-    '–—”„…«»‘’“°ſ†•✠' + '!\"#$%&\'()*+-/:;<=>?@[\]^_`{|}~'
-    + string.digits
+    COMMON_PUNCTUATION +
+    OTHER_PUNTUATION +
+    string.digits
 )
 characters_to_translate = 'ąćęłńóśźżäöüæèêéôâáà£çëîñòùúûāœï'
 replacement_characters = 'acelnoszzaoueeeeoaaaeceinouuuaei'

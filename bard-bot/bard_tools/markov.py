@@ -12,6 +12,9 @@ from tensorflow.keras.callbacks import (EarlyStopping as EarlyStopping,
 from bard_tools.text_utils import get_text_stats
 
 
+DEFAULT_NUM_EPOCHS = 100
+
+
 class Dataset:
     def __init__(self, word_to_indices, vocab_size):
         self.word_to_indices = word_to_indices
@@ -120,6 +123,7 @@ def noop(*arg, **kwargs):
 
 
 def markov_get_dataset_and_model(text,
+                                 epochs,
                                  show_training_stage_test=False,
                                  training_stage_test_seed=None,
                                  send_output=noop):
@@ -163,7 +167,6 @@ def markov_get_dataset_and_model(text,
     )
 
     batch_size = 64
-    epochs = 100
 
     callbacks = [early_stopping]
     if show_training_stage_test:
