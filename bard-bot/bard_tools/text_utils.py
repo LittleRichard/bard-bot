@@ -1,13 +1,16 @@
 import string
 
 
+CASE_INSENSITIVE = False
+STRIP_COMMON_PUNCTUATION = False
+
 COMMON_PUNCTUATION = '!\"#$%&\'()*+-/:;<=>?@[]^_`{|}~\\'
 OTHER_PUNTUATION = '–—”„…«»‘’“°ſ†•✠'
 
 characters_to_remove = (
-    COMMON_PUNCTUATION +
-    OTHER_PUNTUATION +
-    string.digits
+    '' if STRIP_COMMON_PUNCTUATION else COMMON_PUNCTUATION
+    + OTHER_PUNTUATION
+    + string.digits
 )
 characters_to_translate = 'ąćęłńóśźżäöüæèêéôâáà£çëîñòùúûāœï'
 replacement_characters = 'acelnoszzaoueeeeoaaaeceinouuuaei'
@@ -24,7 +27,7 @@ class DataProcessor:
         special_characters_translator = str.maketrans(
             self.chars_to_translate, self.replacement_chars, '')
         preproc_text = (
-            preproc_text.lower()
+            preproc_text.lower() if CASE_INSENSITIVE else preproc_text
             .translate(removal_translator)
             .translate(special_characters_translator)
         )
